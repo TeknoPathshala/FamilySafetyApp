@@ -80,7 +80,7 @@ class MainActivity : Activity() {
             cameraCard.addView(camSwitch)
             root.addView(cameraCard)
 
-            // Emergency SOS Button (Explicit MainActivity Context Pass)
+            // Emergency SOS Button
             val sosBtn = Button(this).apply {
                 text = "🚨 EMERGENCY SOS BROADCAST"
                 textSize = 16f
@@ -115,7 +115,7 @@ class MainActivity : Activity() {
             root.addView(shareBtn)
 
             root.addView(createCard("🗺️ Live Dashboard", "View locations & battery of members") { members() })
-            root.addView(createCard("🚪 Logout", "Reset current session") { AppConfig.clearAuth(this); showHome() })
+            root.addView(createCard("🚪 Logout", "Reset current session") { AppConfig.clearAuth(this@MainActivity); showHome() })
         }
 
         setContentView(ScrollView(this).apply { addView(root) })
