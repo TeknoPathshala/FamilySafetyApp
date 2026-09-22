@@ -7,89 +7,210 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.*
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private val exec = Executors.newSingleThreadExecutor()
-    private fun tv(t: String, size: Float = 16f) = TextView(this).apply { text = t; textSize = size; setPadding(0, 12, 0, 12) }
-    private fun btn(t: String, click: () -> Unit) = Button(this).apply { text = t; setOnClickListener { click() } }
-    
+
     override fun onCreate(b: Bundle?) { super.onCreate(b); showHome() }
-    
+
     private fun showHome() {
-        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 28, 32, 20) }
-        root.addView(tv("Family Safety", 28f))
-        root.addView(tv("Transparent family location sharing\nCamera and microphone are not accessed by this app."))
-        
-        if (AppConfig.apiKey(this).isBlank()) root.addView(btn("1. Configure Firebase") { configure() })
-        if (AppConfig.uid(this).isBlank()) root.addView(btn("2. Sign in / Create account") { auth() })
-        
-        if (AppConfig.uid(this).isNotBlank()) {
-            root.addView(tv("Account: ${AppConfig.email(this)}"))
-            root.addView(btn("3. Set family code / name") { profile() })
-            root.addView(tv("Family: ${AppConfig.familyCode(this).ifBlank { "Not set" }}"))
-            root.addView(btn(if (AppConfig.sharing(this)) "Stop location sharing" else "Start location sharing") {
-                if (AppConfig.sharing(this)) { 
-                    stopService(Intent(this, LocationService::class.java))
-                    AppConfig.setSharing(this, false)
-                    showHome() 
-                } else startSharing()
-            })
-            root.addView(btn("View family locations") { members() })
-            root.addView(btn("Log out / reset") { AppConfig.clearAuth(this); showHome() })
+        root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
         }
-        root.addView(tv("\nSharing is always visible. Android shows a persistent notification while location sharing is active. Each device can stop sharing at any time."))
+
+        // Header Section
+        val title = TextView(this).apply {
+            text = "🛡️ Family Safety Pro"
+            textSize = 26f
+            setTextColor(0xFF1E88E5.toInt())
+            setPadding(0, 0, 0, 10)
+        }
+        val subtitle = TextView(this).apply {
+            text = "Transparent Family Protection & Emergency Tracking"
+            textSize = 14f
+            setTextColor(0xFF757575.toInt())
+            setPadding(0, 0, 0, 30)
+        }
+        root.addView(title)
+        root.addView(subtitle)
+
+        if (AppConfig.apiKey(this).isBlank()) root.addView(createCard("1. Setup Firebase", "Connect your database to sync family members.") { configure() })
+        if (AppConfig.uid(this).isBlank()) root.addView(createCard("2. Account Login", "Sign in or register a new user account.") { auth() })
+
+        if (AppConfig.uid(this).isNotBlank()) {
+            root.addView(createCard("User Account", AppConfig.email(this)) {})
+            root.addView(createCard("3. Family Group Code", "Code: ${AppConfig.familyCode(this).ifBlank { "Not set" }}") { profile() })
+
+            // Camera Access Switch Card
+            val cameraCard = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(30, 25, 30, 25)
+                setBackgroundColor(0xFFF5F5F5.toInt())
+                gravity = Gravity.CENTER_VERTICAL
+                val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                params.setMargins(0, 0, 0, 20)
+                layoutParams = params
+            }
+
+            val camText = TextView(this).apply {
+                text = "📷 Allow Camera Access\n(For Emergency Snapshots)"
+                textSize = 14f
+                setTextColor(0xFF212121.toInt())
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val camSwitch = Switch(this).apply {
+                isChecked = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                setOnCheckedChangeListener { _, isChecked ->
+                    if (isChecked) {
+                        requestPermissions(arrayOf(Manifest.permission.CAMERA), 101)
+                    } else {
+                        toast("Camera permission disabled")
+                        showHome()
+                    }
+                }
+            }
+
+            cameraCard.addView(camText)
+            cameraCard.addView(camSwitch)
+            root.addView(cameraCard)
+
+            // Emergency SOS Button
+            val sosBtn = Button(this).apply {
+                text = "🚨 EMERGENCY SOS BROADCAST"
+                textSize = 16f
+                setBackgroundColor(0xFFD32F2F.toInt())
+                setTextColor(0xFFFFFFFF.toInt())
+                setPadding(20, 30, 20, 30)
+                val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                params.setMargins(0, 10, 0, 20)
+                layoutParams = params
+                setOnClickListener { sendEmergencySOS() }
+            }
+            root.addView(sosBtn)
+
+            // Live Sharing Toggle Button
+            val sharingActive = AppConfig.sharing(this)
+            val shareBtn = Button(this).apply {
+                text = if (sharingActive) "⏹ STOP LIVE SHARING" else "▶ START LIVE SHARING"
+                textSize = 15f
+                setBackgroundColor(if (sharingActive) 0xFFE65100.toInt() else 0xFF2E7D32.toInt())
+                setTextColor(0xFFFFFFFF.toInt())
+                val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                params.setMargins(0, 0, 0, 20)
+                layoutParams = params
+                setOnClickListener {
+                    if (AppConfig.sharing(this)) {
+                        stopService(Intent(this@MainActivity, LocationService::class.java))
+                        AppConfig.setSharing(this@MainActivity, false)
+                        showHome()
+                    } else startSharing()
+                }
+            }
+            root.addView(shareBtn)
+
+            root.addView(createCard("🗺️ Live Dashboard", "View locations & battery of members") { members() })
+            root.addView(createCard("🚪 Logout", "Reset current session") { AppConfig.clearAuth(this); showHome() })
+        }
+
         setContentView(ScrollView(this).apply { addView(root) })
     }
-    
+
+    private fun createCard(titleText: String, subtitleText: String, onClick: () -> Unit): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(30, 25, 30, 25)
+            setBackgroundColor(0xFFF8F9FA.toInt())
+            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            params.setMargins(0, 0, 0, 20)
+            layoutParams = params
+            if (onClick != {}) setOnClickListener { onClick() }
+        }
+
+        val t = TextView(this).apply {
+            text = titleText
+            textSize = 16f
+            setTextColor(0xFF1565C0.toInt())
+        }
+        val s = TextView(this).apply {
+            text = subtitleText
+            textSize = 13f
+            setTextColor(0xFF616161.toInt())
+            setPadding(0, 5, 0, 0)
+        }
+        card.addView(t)
+        if (subtitleText.isNotEmpty()) card.addView(s)
+        return card
+    }
+
     private fun configure() {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        box.addView(tv("Firebase setup", 26f))
-        val key = EditText(this); key.hint = "Firebase Web API key"
-        val project = EditText(this); project.hint = "Firebase project ID"
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40) }
+        box.addView(TextView(this).apply { text = "Firebase Setup"; textSize = 22f; setTextColor(0xFF1976D2.toInt()) })
+        val key = EditText(this).apply { hint = "Firebase Web API Key" }
+        val project = EditText(this).apply { hint = "Firebase Project ID" }
         box.addView(key); box.addView(project)
-        box.addView(btn("Save") { AppConfig.saveFirebase(this, key.text.toString().trim(), project.text.toString().trim()); showHome() })
+        box.addView(Button(this).apply {
+            text = "Save Configuration"
+            setOnClickListener {
+                AppConfig.saveFirebase(this@MainActivity, key.text.toString().trim(), project.text.toString().trim())
+                showHome()
+            }
+        })
         setContentView(box)
     }
-    
+
     private fun auth() {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        box.addView(tv("Account", 26f))
-        val e = EditText(this); e.hint = "Email"
-        val p = EditText(this); p.hint = "Password"; p.inputType = 129
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40) }
+        box.addView(TextView(this).apply { text = "Account Access"; textSize = 22f; setTextColor(0xFF1976D2.toInt()) })
+        val e = EditText(this).apply { hint = "Email Address" }
+        val p = EditText(this).apply { hint = "Password"; inputType = 129 }
         box.addView(e); box.addView(p)
-        box.addView(btn("Sign in") { doAuth(e.text.toString(), p.text.toString(), false) })
-        box.addView(btn("Create account") { doAuth(e.text.toString(), p.text.toString(), true) })
+        box.addView(Button(this).apply { text = "Sign In"; setOnClickListener { doAuth(e.text.toString(), p.text.toString(), false) } })
+        box.addView(Button(this).apply { text = "Create Account"; setOnClickListener { doAuth(e.text.toString(), p.text.toString(), true) } })
         setContentView(box)
     }
-    
-    private fun doAuth(e: String, p: String, create: Boolean) { 
-        if (e.isBlank() || p.length < 6) { toast("Enter email and password (6+ characters)"); return }
+
+    private fun doAuth(e: String, p: String, create: Boolean) {
+        if (e.isBlank() || p.length < 6) { toast("Enter valid email & password (min 6 chars)"); return }
         exec.execute {
             try {
                 val r = if (create) FirebaseApi.signUp(this, e, p) else FirebaseApi.signIn(this, e, p)
-                runOnUiThread { AppConfig.saveAuth(this, e, r.getString("localId"), r.getString("idToken")); showHome() }
-            } catch (x: Exception) { 
-                runOnUiThread { toast("Firebase error: ${x.message?.take(180)}") } 
+                runOnUiThread {
+                    AppConfig.saveAuth(this, e, r.getString("localId"), r.getString("idToken"))
+                    showHome()
+                }
+            } catch (x: Exception) {
+                runOnUiThread { toast("Auth Error: ${x.message?.take(180)}") }
             }
-        } 
+        }
     }
-    
+
     private fun profile() {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        box.addView(tv("Family setup", 26f))
-        val n = EditText(this); n.hint = "Your name"; n.setText(AppConfig.name(this))
-        val c = EditText(this); c.hint = "Family code (e.g. ALI2026)"; c.setText(AppConfig.familyCode(this))
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40) }
+        box.addView(TextView(this).apply { text = "Family Group Setup"; textSize = 22f; setTextColor(0xFF1976D2.toInt()) })
+        val n = EditText(this).apply { hint = "Your Name"; setText(AppConfig.name(this@MainActivity)) }
+        val c = EditText(this).apply { hint = "Family Code (e.g. HOME2026)"; setText(AppConfig.familyCode(this@MainActivity)) }
         box.addView(n); box.addView(c)
-        box.addView(tv("Use the same family code on each family member's phone. It is a shared code, not a secret password."))
-        box.addView(btn("Save") { AppConfig.saveProfile(this, n.text.toString(), c.text.toString().trim().uppercase()); showHome() })
+        box.addView(Button(this).apply {
+            text = "Save Profile"
+            setOnClickListener {
+                AppConfig.saveProfile(this@MainActivity, n.text.toString(), c.text.toString().trim().uppercase())
+                showHome()
+            }
+        })
         setContentView(box)
     }
-    
+
     private fun startSharing() {
-        if (AppConfig.familyCode(this).isBlank() || AppConfig.name(this).isBlank()) { toast("Set your name and family code first"); return }
+        if (AppConfig.familyCode(this).isBlank() || AppConfig.name(this).isBlank()) {
+            toast("Please set your Name and Family Code first")
+            return
+        }
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 55)
             return
@@ -98,40 +219,89 @@ class MainActivity : Activity() {
         startForegroundService(Intent(this, LocationService::class.java))
         showHome()
     }
-    
-    override fun onRequestPermissionsResult(r: Int, p: Array<out String>, g: IntArray) {
-        super.onRequestPermissionsResult(r, p, g)
-        if (r == 55 && g.isNotEmpty() && g[0] == PackageManager.PERMISSION_GRANTED) startSharing() else toast("Location permission is required for sharing")
+
+    private fun sendEmergencySOS() {
+        if (AppConfig.familyCode(this).isBlank()) { toast("Family Code required for SOS"); return }
+        toast("Sending Emergency SOS Alert...")
+        exec.execute {
+            try {
+                FirebaseApi.sendSOSAlert(
+                    this,
+                    AppConfig.idToken(this),
+                    AppConfig.familyCode(this),
+                    AppConfig.name(this)
+                )
+                runOnUiThread { toast("🚨 Emergency Alert Sent!") }
+            } catch (e: Exception) {
+                runOnUiThread { toast("Failed to send SOS: ${e.message}") }
+            }
+        }
     }
-    
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 55 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startSharing()
+        } else if (requestCode == 101) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                toast("Camera Access Granted! 📷")
+            } else {
+                toast("Camera Access Denied!")
+            }
+            showHome()
+        }
+    }
+
     private fun members() {
-        if (AppConfig.familyCode(this).isBlank()) { toast("Set family code first"); return }
+        if (AppConfig.familyCode(this).isBlank()) { toast("Set Family Code first"); return }
         exec.execute {
             try {
                 val list = FirebaseApi.listMembers(this, AppConfig.idToken(this), AppConfig.familyCode(this))
                 runOnUiThread {
-                    val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(28, 28, 28, 28) }
-                    box.addView(tv("Family locations", 26f))
-                    if (list.isEmpty()) box.addView(tv("No family members have shared a location yet."))
+                    val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(30, 30, 30, 30) }
+                    box.addView(TextView(this).apply { text = "📍 Live Dashboard"; textSize = 22f; setTextColor(0xFF1976D2.toInt()) })
+                    
+                    if (list.isEmpty()) box.addView(TextView(this).apply { text = "No active family members found." })
+
                     list.forEach { o ->
                         val name = o.optString("name", "Member")
                         val lat = o.optDouble("lat", Double.NaN)
                         val lon = o.optDouble("lon", Double.NaN)
+                        val battery = o.optInt("battery", -1)
                         val sharing = o.optBoolean("sharing", false)
-                        box.addView(tv("$name — ${if (sharing) "Sharing ON" else "Sharing OFF"}\n${if (lat.isNaN()) "No location" else "$lat, $lon"}"))
-                        if (!lat.isNaN()) box.addView(btn("Open in Google Maps") {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon")))
-                        })
+
+                        val detailCard = LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            setPadding(25, 20, 25, 20)
+                            setBackgroundColor(0xFFECEFF1.toInt())
+                            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                            params.setMargins(0, 10, 0, 10)
+                            layoutParams = params
+                        }
+
+                        val memberInfo = "$name — ${if (sharing) "🟢 Sharing ON" else "🔴 Sharing OFF"}\n🔋 Battery: ${if (battery != -1) "$battery%" else "N/A"}"
+                        detailCard.addView(TextView(this).apply { text = memberInfo; textSize = 15f; setTextColor(0xFF263238.toInt()) })
+
+                        if (!lat.isNaN()) {
+                            detailCard.addView(Button(this).apply {
+                                text = "🗺️ Open Location in Maps"
+                                setOnClickListener {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon($name)")))
+                                }
+                            })
+                        }
+                        box.addView(detailCard)
                     }
-                    box.addView(btn("Refresh") { members() })
-                    box.addView(btn("Back") { showHome() })
+
+                    box.addView(Button(this).apply { text = "🔄 Refresh"; setOnClickListener { members() } })
+                    box.addView(Button(this).apply { text = "⬅️ Back"; setOnClickListener { showHome() } })
                     setContentView(ScrollView(this).apply { addView(box) })
                 }
             } catch (x: Exception) {
-                runOnUiThread { toast("Could not load members: ${x.message?.take(180)}") }
+                runOnUiThread { toast("Dashboard Error: ${x.message?.take(180)}") }
             }
         }
     }
-    
+
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 }
