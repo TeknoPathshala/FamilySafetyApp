@@ -1,12 +1,20 @@
 package com.example.familysafety
 
-import android.app.*
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.BatteryManager
 import android.os.IBinder
 import android.os.Looper
-import com.google.android.gms.location.*
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import java.util.concurrent.Executors
 
 class LocationService : Service() {
@@ -41,7 +49,6 @@ class LocationService : Service() {
                         val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
                         val battery = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
                         
-                        // Fix: Added boolean parameter 'true' for 'sharing' status
                         FirebaseApi.writeMember(
                             this@LocationService,
                             AppConfig.idToken(this@LocationService),
@@ -73,7 +80,6 @@ class LocationService : Service() {
             client.removeLocationUpdates(callback)
         }
         
-        // Update status to sharing = false when service stops
         exec.execute {
             try {
                 val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
