@@ -80,7 +80,7 @@ class MainActivity : Activity() {
             cameraCard.addView(camSwitch)
             root.addView(cameraCard)
 
-            // Emergency SOS Button
+            // Emergency SOS Button (Explicit MainActivity Context Pass)
             val sosBtn = Button(this).apply {
                 text = "🚨 EMERGENCY SOS BROADCAST"
                 textSize = 16f
@@ -105,7 +105,7 @@ class MainActivity : Activity() {
                 params.setMargins(0, 0, 0, 20)
                 layoutParams = params
                 setOnClickListener {
-                    if (AppConfig.sharing(this)) {
+                    if (AppConfig.sharing(this@MainActivity)) {
                         stopService(Intent(this@MainActivity, LocationService::class.java))
                         AppConfig.setSharing(this@MainActivity, false)
                         showHome()
@@ -179,9 +179,9 @@ class MainActivity : Activity() {
         if (e.isBlank() || p.length < 6) { toast("Enter valid email & password (min 6 chars)"); return }
         exec.execute {
             try {
-                val r = if (create) FirebaseApi.signUp(this, e, p) else FirebaseApi.signIn(this, e, p)
+                val r = if (create) FirebaseApi.signUp(this@MainActivity, e, p) else FirebaseApi.signIn(this@MainActivity, e, p)
                 runOnUiThread {
-                    AppConfig.saveAuth(this, e, r.getString("localId"), r.getString("idToken"))
+                    AppConfig.saveAuth(this@MainActivity, e, r.getString("localId"), r.getString("idToken"))
                     showHome()
                 }
             } catch (x: Exception) {
@@ -226,10 +226,10 @@ class MainActivity : Activity() {
         exec.execute {
             try {
                 FirebaseApi.sendSOSAlert(
-                    this,
-                    AppConfig.idToken(this),
-                    AppConfig.familyCode(this),
-                    AppConfig.name(this)
+                    this@MainActivity,
+                    AppConfig.idToken(this@MainActivity),
+                    AppConfig.familyCode(this@MainActivity),
+                    AppConfig.name(this@MainActivity)
                 )
                 runOnUiThread { toast("🚨 Emergency Alert Sent!") }
             } catch (e: Exception) {
@@ -256,12 +256,12 @@ class MainActivity : Activity() {
         if (AppConfig.familyCode(this).isBlank()) { toast("Set Family Code first"); return }
         exec.execute {
             try {
-                val list = FirebaseApi.listMembers(this, AppConfig.idToken(this), AppConfig.familyCode(this))
+                val list = FirebaseApi.listMembers(this@MainActivity, AppConfig.idToken(this@MainActivity), AppConfig.familyCode(this@MainActivity))
                 runOnUiThread {
-                    val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(30, 30, 30, 30) }
-                    box.addView(TextView(this).apply { text = "📍 Live Dashboard"; textSize = 22f; setTextColor(0xFF1976D2.toInt()) })
-                    
-                    if (list.isEmpty()) box.addView(TextView(this).apply { text = "No active family members found." })
+                    val box = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(30, 30, 30, 30) }
+                    box.addView(TextView(this@MainActivity).apply { text = "📍 Live Dashboard"; textSize = 22f; setTextColor(0xFF1976D2.toInt()) })
+
+                    if (list.isEmpty()) box.addView(TextView(this@MainActivity).apply { text = "No active family members found." })
 
                     list.forEach { o ->
                         val name = o.optString("name", "Member")
@@ -270,7 +270,7 @@ class MainActivity : Activity() {
                         val battery = o.optInt("battery", -1)
                         val sharing = o.optBoolean("sharing", false)
 
-                        val detailCard = LinearLayout(this).apply {
+                        val detailCard = LinearLayout(this@MainActivity).apply {
                             orientation = LinearLayout.VERTICAL
                             setPadding(25, 20, 25, 20)
                             setBackgroundColor(0xFFECEFF1.toInt())
@@ -280,10 +280,10 @@ class MainActivity : Activity() {
                         }
 
                         val memberInfo = "$name — ${if (sharing) "🟢 Sharing ON" else "🔴 Sharing OFF"}\n🔋 Battery: ${if (battery != -1) "$battery%" else "N/A"}"
-                        detailCard.addView(TextView(this).apply { text = memberInfo; textSize = 15f; setTextColor(0xFF263238.toInt()) })
+                        detailCard.addView(TextView(this@MainActivity).apply { text = memberInfo; textSize = 15f; setTextColor(0xFF263238.toInt()) })
 
                         if (!lat.isNaN()) {
-                            detailCard.addView(Button(this).apply {
+                            detailCard.addView(Button(this@MainActivity).apply {
                                 text = "🗺️ Open Location in Maps"
                                 setOnClickListener {
                                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon($name)")))
@@ -293,9 +293,9 @@ class MainActivity : Activity() {
                         box.addView(detailCard)
                     }
 
-                    box.addView(Button(this).apply { text = "🔄 Refresh"; setOnClickListener { members() } })
-                    box.addView(Button(this).apply { text = "⬅️ Back"; setOnClickListener { showHome() } })
-                    setContentView(ScrollView(this).apply { addView(box) })
+                    box.addView(Button(this@MainActivity).apply { text = "🔄 Refresh"; setOnClickListener { members() } })
+                    box.addView(Button(this@MainActivity).apply { text = "⬅️ Back"; setOnClickListener { showHome() } })
+                    setContentView(ScrollView(this@MainActivity).apply { addView(box) })
                 }
             } catch (x: Exception) {
                 runOnUiThread { toast("Dashboard Error: ${x.message?.take(180)}") }
