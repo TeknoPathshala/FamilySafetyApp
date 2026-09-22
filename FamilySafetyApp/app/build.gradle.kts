@@ -30,10 +30,11 @@ kotlin {
 }
 
 dependencies {
-    // Latest Location API version (resolves legacy fragment & core-ui conflicts)
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-    
-    // Explicit modern Core & Appcompat to override legacy transitive dependencies
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    // Google Location Services
+    implementation("com.google.android.gms:play-services-location:21.0.1") {
+        exclude(group = "androidx.legacy")
+    }
+
+    // AndroidX Core for compatibility
+    implementation("androidx.core:core-ktx:1.12.0")
 }
