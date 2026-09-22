@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.example.familysafety"
     compileSdk = 35
+
     defaultConfig {
         applicationId = "com.example.familysafety"
         minSdk = 26
