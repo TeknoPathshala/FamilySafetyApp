@@ -30,6 +30,20 @@ object FirebaseApi {
         return postJson(url, body.toString())
     }
 
+    fun writeMember(context: Context, idToken: String, familyCode: String, uid: String, name: String, lat: Double, lon: Double, battery: Int, sharing: Boolean) {
+        val projectId = AppConfig.projectId(context)
+        val url = "https://$projectId-default-rtdb.firebaseio.com/locations/$familyCode/$uid.json?auth=$idToken"
+        val body = JSONObject().apply {
+            put("name", name)
+            put("lat", lat)
+            put("lon", lon)
+            put("battery", battery)
+            put("sharing", sharing)
+            put("updatedAt", System.currentTimeMillis())
+        }
+        putJson(url, body.toString())
+    }
+
     fun sendSOSAlert(context: Context, idToken: String, familyCode: String, userName: String) {
         val projectId = AppConfig.projectId(context)
         val url = "https://$projectId-default-rtdb.firebaseio.com/sos/$familyCode.json?auth=$idToken"
@@ -66,10 +80,18 @@ object FirebaseApi {
     }
 
     private fun postJson(urlStr: String, jsonBody: String): JSONObject {
+        return sendHttpRequest(urlStr, "POST", jsonBody)
+    }
+
+    private fun putJson(urlStr: String, jsonBody: String): JSONObject {
+        return sendHttpRequest(urlStr, "PUT", jsonBody)
+    }
+
+    private fun sendHttpRequest(urlStr: String, method: String, jsonBody: String): JSONObject {
         val url = URL(urlStr)
         val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.setRequestHeader("Content-Type", "application/json")
+        conn.requestMethod = method
+        conn.setRequestProperty("Content-Type", "application/json") // Fix: setRequestProperty instead of setRequestHeader
         conn.doOutput = true
         conn.connectTimeout = 10000
         conn.readTimeout = 10000
@@ -78,10 +100,10 @@ object FirebaseApi {
 
         val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
         val responseText = stream.bufferedReader().use { it.readText() }
-        
+
         if (conn.responseCode !in 200..299) {
             throw Exception("HTTP ${conn.responseCode}: $responseText")
         }
-        return JSONObject(responseText)
+        return if (responseText.startsWith("{")) JSONObject(responseText) else JSONObject()
     }
 }
