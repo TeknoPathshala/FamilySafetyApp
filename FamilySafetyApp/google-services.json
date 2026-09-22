@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "884970148679",
+    "project_id": "familysafetyapp-39c0a",
+    "storage_bucket": "familysafetyapp-39c0a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:884970148679:android:5bd1861440c72fb6ecf262",
+        "android_client_info": {
+          "package_name": "com.example.familysafety"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUyl2xzH1TPlhg7nT1m00n1miFObHQvSY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
