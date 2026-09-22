@@ -2,55 +2,86 @@ package com.example.familysafety
 
 import android.content.Context
 import org.json.JSONObject
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
 object FirebaseApi {
-    private fun request(url: String, method: String, body: String?, token: String? = null): JSONObject {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.requestMethod = method
-        c.connectTimeout = 12000; c.readTimeout = 12000
-        c.setRequestProperty("Content-Type", "application/json")
-        if (!token.isNullOrBlank()) c.setRequestProperty("Authorization", "Bearer $token")
-        if (body != null) { c.doOutput = true; c.outputStream.use { it.write(body.toByteArray()) } }
-        val stream = if (c.responseCode in 200..299) c.inputStream else c.errorStream
-        val text = stream?.bufferedReader()?.use { it.readText() } ?: "{}"
-        if (c.responseCode !in 200..299) throw Exception(text)
-        return JSONObject(text)
+
+    fun signUp(context: Context, email: String, pass: String): JSONObject {
+        val key = AppConfig.apiKey(context)
+        val url = "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$key"
+        val body = JSONObject().apply {
+            put("email", email)
+            put("password", pass)
+            put("returnSecureToken", true)
+        }
+        return postJson(url, body.toString())
     }
 
-    fun signIn(c: Context, email: String, password: String): JSONObject {
-        val key = AppConfig.apiKey(c); require(key.isNotBlank()) { "Firebase API key missing" }
-        return request("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$key", "POST", JSONObject().put("email", email).put("password", password).put("returnSecureToken", true).toString())
-    }
-    fun signUp(c: Context, email: String, password: String): JSONObject {
-        val key = AppConfig.apiKey(c); require(key.isNotBlank()) { "Firebase API key missing" }
-        return request("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$key", "POST", JSONObject().put("email", email).put("password", password).put("returnSecureToken", true).toString())
-    }
-    private fun docUrl(c: Context, path: String) = "https://firestore.googleapis.com/v1/projects/${AppConfig.projectId(c)}/databases/(default)/documents/$path"
-    fun writeMember(c: Context, token: String, code: String, uid: String, fields: JSONObject) {
-        val fs = JSONObject().put("fields", JSONObject())
-        val out = JSONObject()
-        fields.keys().forEach { k ->
-            val v = fields.get(k)
-            out.put(k, when (v) {
-                is Boolean -> JSONObject().put("booleanValue", v)
-                is Number -> JSONObject().put("doubleValue", v.toDouble())
-                else -> JSONObject().put("stringValue", v.toString())
-            })
+    fun signIn(context: Context, email: String, pass: String): JSONObject {
+        val key = AppConfig.apiKey(context)
+        val url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$key"
+        val body = JSONObject().apply {
+            put("email", email)
+            put("password", pass)
+            put("returnSecureToken", true)
         }
-        fs.put("fields", out)
-        request(docUrl(c, "families/$code/members/$uid"), "PATCH", fs.toString(), token)
+        return postJson(url, body.toString())
     }
-    fun listMembers(c: Context, token: String, code: String): List<JSONObject> {
-        val r = request(docUrl(c, "families/$code/members"), "GET", null, token)
-        val arr = r.optJSONArray("documents") ?: return emptyList()
+
+    fun sendSOSAlert(context: Context, idToken: String, familyCode: String, userName: String) {
+        val projectId = AppConfig.projectId(context)
+        val url = "https://$projectId-default-rtdb.firebaseio.com/sos/$familyCode.json?auth=$idToken"
+        val body = JSONObject().apply {
+            put("sender", userName)
+            put("timestamp", System.currentTimeMillis())
+            put("status", "EMERGENCY")
+        }
+        postJson(url, body.toString())
+    }
+
+    fun listMembers(context: Context, idToken: String, familyCode: String): List<JSONObject> {
+        val projectId = AppConfig.projectId(context)
+        val urlStr = "https://$projectId-default-rtdb.firebaseio.com/locations/$familyCode.json?auth=$idToken"
+        val url = URL(urlStr)
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "GET"
+        conn.connectTimeout = 10000
+        conn.readTimeout = 10000
+
         val list = mutableListOf<JSONObject>()
-        for (i in 0 until arr.length()) {
-            val d = arr.getJSONObject(i); val f = d.optJSONObject("fields") ?: JSONObject(); val o = JSONObject()
-            f.keys().forEach { k -> val x=f.getJSONObject(k); o.put(k, x.opt("stringValue") ?: x.opt("doubleValue") ?: x.opt("booleanValue")) }
-            o.put("id", d.optString("name").substringAfterLast('/')); list.add(o)
+        if (conn.responseCode == 200) {
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            if (text.isNotBlank() && text != "null") {
+                val json = JSONObject(text)
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    list.add(json.getJSONObject(key))
+                }
+            }
         }
         return list
+    }
+
+    private fun postJson(urlStr: String, jsonBody: String): JSONObject {
+        val url = URL(urlStr)
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestHeader("Content-Type", "application/json")
+        conn.doOutput = true
+        conn.connectTimeout = 10000
+        conn.readTimeout = 10000
+
+        OutputStreamWriter(conn.outputStream).use { it.write(jsonBody) }
+
+        val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+        val responseText = stream.bufferedReader().use { it.readText() }
+        
+        if (conn.responseCode !in 200..299) {
+            throw Exception("HTTP ${conn.responseCode}: $responseText")
+        }
+        return JSONObject(responseText)
     }
 }
