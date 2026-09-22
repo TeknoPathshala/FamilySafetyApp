@@ -28,3 +28,8 @@ android {
 kotlin {
     jvmToolchain(17)
 }
+
+dependencies {
+    // Google Play Services Location API for LocationServices, FusedLocationProviderClient, etc.
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+}
